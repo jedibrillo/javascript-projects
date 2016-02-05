@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="googlebot" content="noindex, nofollow">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/2.2.1/mustache.js"></script>
+    <style type="text/css">
+      .cover {
+          width: 200px;
+          height: 133px;
+          display: inline-block;
+          background-size: cover;
+      }
+    </style>
+    <title>Spotify Web API - Search</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Search Spotify</h1>
+      <form id="search-form" class="form-group">
+        <label class="control-label" for="query">Type a keyword and choose your result type(s), then click on "Search" or press Enter.</label>
+        <input type="text" id="query" value="" class="form-control" placeholder="Search Spotify...">
+        <input type="submit" id="search" class="btn btn-primary" value="Search">
+        <p id="messages"></p>
+      </form>
+      <div id="results">
+      </div>
+    </div>
+    <script id="album_template" type="x-tmpl-mustache">
+      <h2>Albums</h2>
+      {{#items}}
+      <p>{{ ../name }}</p>
+      <div style="background-image:url({{images.2.url}})" data-album-id="{{id}}" class="cover"></div>
+      {{/items}}
+    </script>
+    <script id="artist_template" type="x-tmpl-mustache">
+      <h2>Artists</h2>
+      {{#items}}
+      <p>{{ name }}</p>
+      {{#images.2.url}}<div style="background-image:url({{&images.2.url}})" data-album-id="{{id}}" class="cover"></div>{{/images.2.url}}
+      {{/items}}
+      {{^items}}
+      <p>No artists match your search :(</p>
+      {{/items}}
+    </script>
+    <script id="track_template" type="x-tmpl-mustache">
+      <h2>Tracks</h2>
+      Hello {{ name }}!
+    </script>
+    <script id="playlist_template" type="x-tmpl-mustache">
+      <h2>Playlists</h2>
+      Hello {{ name }}!
+    </script>
+    <script id="searchBoxes_template" type="x-tmpl-mustache">
+      {{#searchTypes}}
+      <label for="searchType_{{.}}">{{.}}</label>
+      <input type="checkbox" id="searchType_{{.}}" name="searchType" class="searchType" value="{{.}}" />
+      {{/searchTypes}}
+    </script>
+    <script type="text/javascript">
+      window.onload = function(){
+        var form = document.getElementById("search-form"),
+            message = document.getElementById("messages"),
+            baseSearchURL = "https://api.spotify.com/v1/search?market=US",
+            resultContainer = document.getElementById("results"),
+            messageClasses = { error : "has-error", success : "has-success", warning : "has-warning"},
+            searchTypes = ["album", "artist", "track", "playlist"],
+            templateCache = {},
+            searchTemplate = document.getElementById("searchBoxes_template").innerHTML,
+            searchTypeRendered = "",
+            checkedValue = "";
+
+        for (type in searchTypes) {
+            templateCache[searchTypes[type]] = document.getElementById(searchTypes[type] + "_template").innerHTML;
+            Mustache.parse(templateCache[searchTypes[type]]);
+        }
+        searchTypeRendered = Mustache.render(searchTemplate, {"searchTypes" : searchTypes});
+        form.insertAdjacentHTML('beforeend', searchTypeRendered);
+
+        var HttpClient = function() {
+            this.get = function(aUrl, aCallback) {
+                var anHttpRequest = new XMLHttpRequest();
+                anHttpRequest.onreadystatechange = function() {
+                  if (anHttpRequest.readyState == 4 && anHttpRequest.status == 200) {
+                    addClass(form,"has-success");
+                    aCallback(JSON.parse(anHttpRequest.responseText));
+                  }
+                }
+                anHttpRequest.open( "GET", aUrl, true );
+                anHttpRequest.send( null );
+            }
+        };
+
+        var hasClass = function(ele,cls) {
+            return ele.className.match(new RegExp('(\\s|^)'+cls+'(\\s|$)'));
+        };
+        var addClass = function(ele,cls) {
+            if (!hasClass(ele,cls)) ele.className += " "+cls;
+        };
+        var removeClass = function(ele,cls) {
+            if (hasClass(ele,cls)) {
+                var reg = new RegExp('(\\s|^)'+cls+'(\\s|$)');
+                ele.className=ele.className.replace(reg,' ');
+            }
+        };
+        var removeStatusClasses = function(ele) {
+          for (status in messageClasses) {
+              if (messageClasses.hasOwnProperty(status)) {
+                removeClass(form,messageClasses[status]);
+              }
+          }
+        };
+
+        var searchSpotify = function(keyword) {
+          var client = new HttpClient();
+          client.get(buildSearchURL(keyword),renderResults);
+        };
+
+        var buildSearchURL = function(keyword) {
+          var inputElements = document.getElementsByClassName('searchType');
+          for(var i=0; inputElements[i]; ++i){
+                if(inputElements[i].checked){
+                     checkedValue += inputElements[i].value + ",";
+                }
+          }
+          if(checkedValue.length) {
+            checkedValue = checkedValue.substring(0, checkedValue.length - 1);
+          }
+
+          return baseSearchURL + "&q=" + keyword + "&type=" + checkedValue;
+        };
+
+        var renderResults = function(data) {
+          removeStatusClasses(form);
+          removeStatusClasses(message);
+          var output = "",
+              typeName = "";
+          for (type in searchTypes) {
+            typeName = searchTypes[type]+"s";
+            if (data[typeName]) {
+              output += Mustache.render(templateCache[searchTypes[type]], data[typeName]);
+            }
+          }
+          results.innerHTML = output;
+        };
+
+        document.getElementById('search-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            removeStatusClasses(form);
+            removeStatusClasses(message);
+            searchSpotify(document.getElementById('query').value);
+        }, false);
+      };
+    </script>
+  </body>
+</html>
